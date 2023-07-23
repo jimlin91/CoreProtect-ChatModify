@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.ArmorStand;
@@ -57,9 +58,9 @@ public final class ArmorStandManipulateListener extends Queue implements Listene
                 try (Connection connection = Database.getConnection(true)) {
                     if (connection != null) {
                         Statement statement = connection.createStatement();
-                        List<String> blockData = ChestTransactionLookup.performLookup(null, statement, location, finalPlayer, 1, 7, true);
-                        for (String data : blockData) {
-                            Chat.sendComponent(finalPlayer, data);
+                        List<Component> blockData = ChestTransactionLookup.performLookup(null, statement, location, finalPlayer, 1, 7, true);
+                        for (Component data : blockData) {
+                            finalPlayer.sendMessage(data);
                         }
                         statement.close();
                     }

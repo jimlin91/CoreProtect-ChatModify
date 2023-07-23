@@ -1199,6 +1199,25 @@ public class CommandHandler implements CommandExecutor {
                     else if (user.hasPermission("coreprotect.networking") && corecommand.equals("network-debug")) {
                         permission = true;
                     }
+                    //Custom modify start
+                    else if(user.hasPermission("coreprotect.custom.container") && corecommand.equals("container")){
+                        permission = true;
+
+                        corecommand = "lookup";
+                        argumentArray = new String[]{"lookup","user:" + user.getName(),"action:container","time:3d"};
+                    }
+                    else if(user.hasPermission("coreprotect.custom.item") && corecommand.equals("item")){
+                        permission = true;
+
+                        corecommand = "lookup";
+                        argumentArray = new String[]{"lookup","radius:5", "action:item", "time:48h"};
+                    }
+                    else if(user.hasPermission("coreprotect.custom.kill") && corecommand.equals("kill")){
+                        permission = true;
+
+                        corecommand = "lookup";
+                        argumentArray = new String[]{"lookup","radius:10", "action:kill", "time:48h"};
+                    }
                 }
 
                 if (corecommand.equals("rollback") || corecommand.equals("restore") || corecommand.equals("rb") || corecommand.equals("rs") || corecommand.equals("ro") || corecommand.equals("re")) {

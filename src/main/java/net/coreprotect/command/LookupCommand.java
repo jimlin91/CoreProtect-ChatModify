@@ -1,14 +1,23 @@
 package net.coreprotect.command;
 
-import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.Statement;
-import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
+import com.google.common.base.Strings;
+import net.coreprotect.config.Config;
+import net.coreprotect.config.ConfigHandler;
+import net.coreprotect.database.Database;
+import net.coreprotect.database.Lookup;
+import net.coreprotect.database.logger.ItemLogger;
+import net.coreprotect.database.lookup.*;
+import net.coreprotect.database.statement.UserStatement;
+import net.coreprotect.language.Phrase;
+import net.coreprotect.language.Selector;
+import net.coreprotect.listener.channel.PluginChannelHandshakeListener;
+import net.coreprotect.listener.channel.PluginChannelListener;
+import net.coreprotect.utility.Chat;
+import net.coreprotect.utility.ChatMessage;
+import net.coreprotect.utility.Color;
+import net.coreprotect.utility.Util;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -20,27 +29,14 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 
-import com.google.common.base.Strings;
-
-import net.coreprotect.config.Config;
-import net.coreprotect.config.ConfigHandler;
-import net.coreprotect.database.Database;
-import net.coreprotect.database.Lookup;
-import net.coreprotect.database.logger.ItemLogger;
-import net.coreprotect.database.lookup.BlockLookup;
-import net.coreprotect.database.lookup.ChestTransactionLookup;
-import net.coreprotect.database.lookup.InteractionLookup;
-import net.coreprotect.database.lookup.PlayerLookup;
-import net.coreprotect.database.lookup.SignMessageLookup;
-import net.coreprotect.database.statement.UserStatement;
-import net.coreprotect.language.Phrase;
-import net.coreprotect.language.Selector;
-import net.coreprotect.listener.channel.PluginChannelHandshakeListener;
-import net.coreprotect.listener.channel.PluginChannelListener;
-import net.coreprotect.utility.Chat;
-import net.coreprotect.utility.ChatMessage;
-import net.coreprotect.utility.Color;
-import net.coreprotect.utility.Util;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class LookupCommand {
     protected static void runCommand(CommandSender player, Command command, boolean permission, String[] args) {
@@ -357,9 +353,9 @@ public class LookupCommand {
                         ConfigHandler.lookupThrottle.put(player2.getName(), new Object[] { true, System.currentTimeMillis() });
                         if (connection != null) {
                             Statement statement = connection.createStatement();
-                            List<String> blockData = ChestTransactionLookup.performLookup(command.getName(), statement, location, player2, p2, finalLimit, false);
-                            for (String data : blockData) {
-                                Chat.sendComponent(player2, data);
+                            List<Component> blockData = ChestTransactionLookup.performLookup(command.getName(), statement, location, player2, p2, finalLimit, false);
+                            for (Component data : blockData) {
+                                player2.sendMessage(data);
                             }
                             statement.close();
                         }
@@ -467,19 +463,14 @@ public class LookupCommand {
                             else {
                                 String blockdata = null;
                                 if (t == 7) {
-                                    blockdata = InteractionLookup.performLookup(command.getName(), statement, fblock, player2, 0, p2, finalLimit);
+                                    player2.sendMessage(InteractionLookup.performLookup(command.getName(), statement, fblock, player2, 0, p2, finalLimit));
+
                                 }
                                 else {
-                                    blockdata = BlockLookup.performLookup(command.getName(), statement, fblockstate, player2, 0, p2, finalLimit);
+
+                                    player2.sendMessage(BlockLookup.performLookup(command.getName(), statement, fblockstate, player2, 0, p2, finalLimit));
                                 }
-                                if (blockdata.contains("\n")) {
-                                    for (String b : blockdata.split("\n")) {
-                                        Chat.sendComponent(player2, b);
-                                    }
-                                }
-                                else if (blockdata.length() > 0) {
-                                    Chat.sendComponent(player2, blockdata);
-                                }
+
                             }
                             statement.close();
                         }
@@ -911,11 +902,11 @@ public class LookupCommand {
                                                     int y = Integer.parseInt(data[3]);
                                                     int z = Integer.parseInt(data[4]);
                                                     String rbd = ((Integer.parseInt(data[8]) == 2 || Integer.parseInt(data[8]) == 3) ? Color.STRIKETHROUGH : "");
-                                                    String timeago = Util.getTimeSince(Integer.parseInt(time), unixtimestamp, true);
+                                                    Component timeago = Util.getTimeSinceComponent(Integer.parseInt(time), unixtimestamp, true);
                                                     Material blockType = Util.itemFilter(Util.getType(dtype), (Integer.parseInt(data[13]) == 0));
-                                                    String dname = Util.nameFilter(blockType.name().toLowerCase(Locale.ROOT), ddata);
+                                                    String dname = blockType.getItemTranslationKey();
                                                     byte[] metadata = data[11] == null ? null : data[11].getBytes(StandardCharsets.ISO_8859_1);
-                                                    String tooltip = Util.getEnchantments(metadata, dtype, amount);
+                                                    Component tooltip = Util.getNmsToolTip(metadata, dtype, amount);
 
                                                     String selector = Selector.FIRST;
                                                     String tag = Color.WHITE + "-";
@@ -944,7 +935,17 @@ public class LookupCommand {
                                                         tag = (daction == 0 ? Color.GREEN + "+" : Color.RED + "-");
                                                     }
 
-                                                    Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(Phrase.LOOKUP_CONTAINER, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, "x" + amount, Util.createTooltip(Color.DARK_AQUA + rbd + dname, tooltip) + Color.WHITE, selector));
+                                                    player2.sendMessage(Component.empty()
+                                                            .append(timeago)
+                                                            .append(Chat.deserializeString(" " + tag + " "))
+                                                            .append(Phrase.buildComponent(Phrase.LOOKUP_CONTAINER
+                                                                    ,Chat.deserializeString(Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd)
+                                                                    ,Chat.deserializeString("x" + amount)
+                                                                    ,Util.createTooltipComponent(Chat.deserializeString(Color.DARK_AQUA + rbd).append(Component.translatable(dname)),tooltip).append(Component.empty().color(NamedTextColor.WHITE))
+                                                                    ,Chat.deserializeString(selector)
+                                                            )
+                                                    ));
+                                                    //Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(Phrase.LOOKUP_CONTAINER, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, "x" + amount, Util.createTooltip(Color.DARK_AQUA + rbd + dname, tooltip) + Color.WHITE, selector));
                                                     PluginChannelListener.getInstance().sendData(player2, Integer.parseInt(time), Phrase.LOOKUP_CONTAINER, selector, dplayer, dname, amount, x, y, z, wid, rbd, true, tag.contains("+"));
                                                 }
                                             }
@@ -968,7 +969,7 @@ public class LookupCommand {
                                                     int amount = Integer.parseInt(data[10]);
                                                     String tag = Color.WHITE + "-";
 
-                                                    String timeago = Util.getTimeSince(Integer.parseInt(time), unixtimestamp, true);
+                                                    Component timeago = Util.getTimeSinceComponent(Integer.parseInt(time), unixtimestamp, true);
                                                     int timeLength = 50 + (Util.getTimeSince(Integer.parseInt(time), unixtimestamp, false).replaceAll("[^0-9]", "").length() * 6);
                                                     String leftPadding = Color.BOLD + Strings.padStart("", 10, ' ');
                                                     if (timeLength % 4 == 0) {
@@ -989,22 +990,16 @@ public class LookupCommand {
                                                             isPlayer = true;
                                                         }
                                                         else {
-                                                            dname = Util.getEntityType(dtype).name();
+                                                            dname = Util.getEntityType(dtype).translationKey();
                                                         }
                                                     }
                                                     else {
-                                                        dname = Util.getType(dtype).name().toLowerCase(Locale.ROOT);
-                                                        dname = Util.nameFilter(dname, ddata);
-                                                    }
-                                                    if (dname.length() > 0 && !isPlayer) {
-                                                        dname = "minecraft:" + dname.toLowerCase(Locale.ROOT) + "";
+                                                        dname = Util.getType(dtype).translationKey();
+
                                                     }
 
-                                                    // Hide "minecraft:" for now.
-                                                    if (dname.contains("minecraft:")) {
-                                                        String[] blockNameSplit = dname.split(":");
-                                                        dname = blockNameSplit[1];
-                                                    }
+
+
 
                                                     // Functions.sendMessage(player2, timeago+" " + ChatColors.WHITE + "- " + ChatColors.DARK_AQUA+rbd+""+dplayer+" " + ChatColors.WHITE+rbd+""+a+" " + ChatColors.DARK_AQUA+rbd+"#"+dtype+ChatColors.WHITE + ". " + ChatColors.GREY + "(x"+x+"/y"+y+"/z"+z+")");
 
@@ -1013,7 +1008,7 @@ public class LookupCommand {
                                                     String action = "a:block";
                                                     if (finalArgAction.contains(4) || finalArgAction.contains(5) || finalArgAction.contains(11) || amount > -1) {
                                                         byte[] metadata = data[11] == null ? null : data[11].getBytes(StandardCharsets.ISO_8859_1);
-                                                        String tooltip = Util.getEnchantments(metadata, dtype, amount);
+                                                        Component tooltip = Util.getNmsToolTip(metadata, dtype, amount);
 
                                                         if (daction == 2 || daction == 3) {
                                                             phrase = Phrase.LOOKUP_ITEM; // {picked up|dropped}
@@ -1040,7 +1035,18 @@ public class LookupCommand {
                                                             action = "a:container";
                                                         }
 
-                                                        Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(phrase, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, "x" + amount, Util.createTooltip(Color.DARK_AQUA + rbd + dname, tooltip) + Color.WHITE, selector));
+                                                        player2.sendMessage(Component.empty()
+                                                                .append(timeago)
+                                                                .append(Chat.deserializeString(" " + tag + " "))
+                                                                .append(Phrase.buildComponent(phrase
+                                                                                ,Chat.deserializeString(Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd)
+                                                                                ,Chat.deserializeString("x" + amount)
+                                                                                ,Util.createTooltipComponent(Chat.deserializeString(Color.DARK_AQUA + rbd).append(Component.translatable(dname)),tooltip).append(Component.empty().color(NamedTextColor.WHITE))
+                                                                                ,Chat.deserializeString(selector)
+                                                                        )
+                                                                ));
+
+                                                        //Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(phrase, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, "x" + amount, Util.createTooltip(Color.DARK_AQUA + rbd + dname, tooltip) + Color.WHITE, selector));
                                                         PluginChannelListener.getInstance().sendData(player2, Integer.parseInt(time), phrase, selector, dplayer, dname, (tag.contains("+") ? 1 : -1), x, y, z, wid, rbd, action.contains("container"), tag.contains("+"));
                                                     }
                                                     else {
@@ -1056,7 +1062,17 @@ public class LookupCommand {
                                                             tag = (daction != 0 ? Color.GREEN + "+" : Color.RED + "-");
                                                         }
 
-                                                        Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(phrase, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, Color.DARK_AQUA + rbd + dname + Color.WHITE, selector));
+                                                        player2.sendMessage(Component.empty()
+                                                                .append(timeago)
+                                                                .append(Chat.deserializeString(" " + tag + " "))
+                                                                .append(Phrase.buildComponent(phrase
+                                                                                ,Chat.deserializeString(Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd)
+                                                                                ,Chat.deserializeString(Color.DARK_AQUA + rbd).append(Component.translatable(dname)).append(Component.empty().color(NamedTextColor.WHITE))
+                                                                                ,Chat.deserializeString(selector)
+                                                                        )
+                                                                ));
+
+                                                        //Chat.sendComponent(player2, timeago + " " + tag + " " + Phrase.build(phrase, Color.DARK_AQUA + rbd + dplayer + Color.WHITE + rbd, Color.DARK_AQUA + rbd + dname + Color.WHITE, selector));
                                                         PluginChannelListener.getInstance().sendData(player2, Integer.parseInt(time), phrase, selector, dplayer, dname, (tag.contains("+") ? 1 : -1), x, y, z, wid, rbd, false, tag.contains("+"));
                                                     }
 

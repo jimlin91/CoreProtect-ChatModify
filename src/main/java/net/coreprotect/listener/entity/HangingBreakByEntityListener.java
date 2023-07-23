@@ -61,16 +61,16 @@ public final class HangingBreakByEntityListener extends Queue implements Listene
                 try (Connection connection = Database.getConnection(true)) {
                     if (connection != null) {
                         Statement statement = connection.createStatement();
-                        String blockData = BlockLookup.performLookup(null, statement, block, player, 0, 1, 7);
+                        player.sendMessage(BlockLookup.performLookup(null, statement, block, player, 0, 1, 7));
 
-                        if (blockData.contains("\n")) {
-                            for (String b : blockData.split("\n")) {
-                                Chat.sendComponent(player, b);
-                            }
-                        }
-                        else if (blockData.length() > 0) {
-                            Chat.sendComponent(player, blockData);
-                        }
+//                        if (blockData.contains("\n")) {
+//                            for (String b : blockData.split("\n")) {
+//                                Chat.sendComponent(player, b);
+//                            }
+//                        }
+//                        else if (blockData.length() > 0) {
+//                            Chat.sendComponent(player, blockData);
+//                        }
 
                         statement.close();
                     }

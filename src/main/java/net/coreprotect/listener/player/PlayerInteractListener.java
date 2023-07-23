@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -127,15 +128,15 @@ public final class PlayerInteractListener extends Queue implements Listener {
                             ConfigHandler.lookupThrottle.put(player.getName(), new Object[] { true, System.currentTimeMillis() });
                             Statement statement = connection.createStatement();
 
-                            String resultData = BlockLookup.performLookup(null, statement, blockFinal, player, 0, 1, 7);
-                            if (resultData.contains("\n")) {
-                                for (String b : resultData.split("\n")) {
-                                    Chat.sendComponent(player, b);
-                                }
-                            }
-                            else if (resultData.length() > 0) {
-                                Chat.sendComponent(player, resultData);
-                            }
+                            player.sendMessage(BlockLookup.performLookup(null, statement, blockFinal, player, 0, 1, 7));
+//                            if (resultData.contains("\n")) {
+//                                for (String b : resultData.split("\n")) {
+//                                    Chat.sendComponent(player, b);
+//                                }
+//                            }
+//                            else if (resultData.length() > 0) {
+//                                Chat.sendComponent(player, resultData);
+//                            }
 
                             statement.close();
                             ConfigHandler.lookupThrottle.put(player.getName(), new Object[] { false, System.currentTimeMillis() });
@@ -307,9 +308,9 @@ public final class PlayerInteractListener extends Queue implements Listener {
                                 try (Connection connection = Database.getConnection(true)) {
                                     if (connection != null) {
                                         Statement statement = connection.createStatement();
-                                        List<String> blockData = ChestTransactionLookup.performLookup(null, statement, finalLocation, player, 1, 7, false);
-                                        for (String data : blockData) {
-                                            Chat.sendComponent(player, data);
+                                        List<Component> blockData = ChestTransactionLookup.performLookup(null, statement, finalLocation, player, 1, 7, false);
+                                        for (Component data : blockData) {
+                                            player.sendMessage(data);
                                         }
 
                                         statement.close();
@@ -368,16 +369,8 @@ public final class PlayerInteractListener extends Queue implements Listener {
                                 try (Connection connection = Database.getConnection(true)) {
                                     if (connection != null) {
                                         Statement statement = connection.createStatement();
-                                        String blockData = InteractionLookup.performLookup(null, statement, finalInteractBlock, player, 0, 1, 7);
+                                        player.sendMessage(InteractionLookup.performLookup(null, statement, finalInteractBlock, player, 0, 1, 7));
 
-                                        if (blockData.contains("\n")) {
-                                            for (String splitData : blockData.split("\n")) {
-                                                Chat.sendComponent(player, splitData);
-                                            }
-                                        }
-                                        else {
-                                            Chat.sendComponent(player, blockData);
-                                        }
 
                                         statement.close();
                                     }
@@ -450,27 +443,27 @@ public final class PlayerInteractListener extends Queue implements Listener {
                                     if (connection != null) {
                                         Statement statement = connection.createStatement();
                                         if (finalBlock.getType().equals(Material.AIR) || finalBlock.getType().equals(Material.CAVE_AIR)) {
-                                            String blockData = BlockLookup.performLookup(null, statement, finalBlock, finalPlayer, 0, 1, 7);
+                                            finalPlayer.sendMessage(BlockLookup.performLookup(null, statement, finalBlock, finalPlayer, 0, 1, 7));
 
-                                            if (blockData.contains("\n")) {
-                                                for (String b : blockData.split("\n")) {
-                                                    Chat.sendComponent(finalPlayer, b);
-                                                }
-                                            }
-                                            else if (blockData.length() > 0) {
-                                                Chat.sendComponent(finalPlayer, blockData);
-                                            }
+//                                            if (blockData.contains("\n")) {
+//                                                for (String b : blockData.split("\n")) {
+//                                                    Chat.sendComponent(finalPlayer, b);
+//                                                }
+//                                            }
+//                                            else if (blockData.length() > 0) {
+//                                                Chat.sendComponent(finalPlayer, blockData);
+//                                            }
                                         }
                                         else {
-                                            String blockData = BlockLookup.performLookup(null, statement, finalBlock, finalPlayer, 0, 1, 7);
-                                            if (blockData.contains("\n")) {
-                                                for (String splitData : blockData.split("\n")) {
-                                                    Chat.sendComponent(finalPlayer, splitData);
-                                                }
-                                            }
-                                            else if (blockData.length() > 0) {
-                                                Chat.sendComponent(finalPlayer, blockData);
-                                            }
+                                            finalPlayer.sendMessage(BlockLookup.performLookup(null, statement, finalBlock, finalPlayer, 0, 1, 7));
+//                                            if (blockData.contains("\n")) {
+//                                                for (String splitData : blockData.split("\n")) {
+//                                                    Chat.sendComponent(finalPlayer, splitData);
+//                                                }
+//                                            }
+//                                            else if (blockData.length() > 0) {
+//                                                Chat.sendComponent(finalPlayer, blockData);
+//                                            }
                                         }
 
                                         statement.close();

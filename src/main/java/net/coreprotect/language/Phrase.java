@@ -6,9 +6,17 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import net.coreprotect.utility.Chat;
 import net.coreprotect.utility.ChatMessage;
 import net.coreprotect.utility.Color;
 import net.coreprotect.utility.Util;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Bukkit;
 
 public enum Phrase {
 
@@ -272,6 +280,64 @@ public enum Phrase {
         return output;
     }
 
+
+    // Component modify start
+    public static Component buildComponent(Phrase phrase, Component... params) {
+        String strPhrase = phrase.getTranslatedPhrase();
+
+        if (HEADERS.contains(phrase)) {
+            strPhrase = Util.capitalize(strPhrase, true);
+        }
+
+        Component output = Chat.deserializeString(strPhrase);
+        TextColor color = NamedTextColor.WHITE;
+
+
+
+        int index = 0;
+        int indexExtra = 0;
+        for (Component param : params) {
+
+            TextColor componentColor = param.color();
+            String plainText = PlainTextComponentSerializer.plainText().serialize(param);
+            if (index == 0 && componentColor != null ) {
+
+                if(plainText.equals("")){
+                    color = componentColor;
+                    indexExtra++;
+                    continue;
+                }
+            }
+
+
+
+            if (Selector.SELECTORS.contains(plainText)) {
+                output = Selector.processComponentSelection(output, plainText, color);
+                indexExtra++;
+                continue;
+            }
+
+            if (strPhrase.contains("{" + index + "}")) {
+                output = output.replaceText(TextReplacementConfig.builder()
+                        .match("\\{" + index + "}").replacement(param).build());
+                index++;
+            }
+        }
+
+        if ((index + indexExtra) != params.length) { // fallback for issues with user modified phrases
+            // System.out.println("buildInternal"); // debug
+            output = buildInternalComponent(phrase, params, color);
+        }
+
+        if (!color.equals(NamedTextColor.WHITE)) {
+            output = output.color(color);
+        }
+
+        return output;
+    }
+
+    // Component modify end
+
     private static String buildInternal(Phrase phrase, String[] params, String color) {
         String output = phrase.getPhrase(); // get internal phrase
 
@@ -290,6 +356,35 @@ public enum Phrase {
 
         return output;
     }
+
+
+    // Component modify start
+    private static Component buildInternalComponent(Phrase phrase, Component[] params, TextColor color) {
+        Component output = Chat.deserializeString(phrase.getPhrase()); // get internal phrase
+
+        int index = 0;
+
+        for (Component param : params) {
+
+            TextColor componentColor = param.color();
+            String plainText = PlainTextComponentSerializer.plainText().serialize(param);
+            if (index == 0 && componentColor != null) {
+                continue;
+            }
+            if (Selector.SELECTORS.contains(plainText)) {
+                output = Selector.processComponentSelection(output, plainText, color);
+                continue;
+            }
+
+            output = output.replaceText(TextReplacementConfig.builder()
+                    .match("\\{" + index + "}").replacement(param).build());
+            index++;
+        }
+
+        return output;
+    }
+
+    // Component modify end
 
     public static String getPhraseSelector(Phrase phrase, String selector) {
         String translatedPhrase = phrase.getTranslatedPhrase();

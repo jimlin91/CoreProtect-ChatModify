@@ -30,6 +30,9 @@ public final class CoreProtect extends JavaPlugin {
 
     private static CoreProtect instance;
 
+    //Custom modify
+    private String craftBukkitPacket;
+
     /**
      * Get the instance of CoreProtect
      *
@@ -55,6 +58,9 @@ public final class CoreProtect extends JavaPlugin {
         instance = this;
         ConfigHandler.path = this.getDataFolder().getPath() + File.separator;
         Language.loadPhrases();
+
+        //Custom modify
+        initiateCraftBukkitPath();
 
         boolean start = performVersionChecks();
         if (start) {
@@ -127,6 +133,14 @@ public final class CoreProtect extends JavaPlugin {
     @Override
     public void onDisable() {
         safeShutdown(this);
+    }
+
+    private void initiateCraftBukkitPath(){
+        craftBukkitPacket = getServer().getClass().getPackage().getName();
+    }
+
+    public String getCraftBukkitPacket(){
+        return craftBukkitPacket;
     }
 
     private static boolean performVersionChecks() {

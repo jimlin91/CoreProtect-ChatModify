@@ -6,6 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import net.coreprotect.database.Rollback;
+import net.coreprotect.utility.Chat;
+import net.kyori.adventure.nbt.api.BinaryTagHolder;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
@@ -17,11 +23,12 @@ import net.coreprotect.language.Selector;
 import net.coreprotect.listener.channel.PluginChannelListener;
 import net.coreprotect.utility.Color;
 import net.coreprotect.utility.Util;
+import org.bukkit.inventory.ItemStack;
 
 public class ChestTransactionLookup {
 
-    public static List<String> performLookup(String command, Statement statement, Location l, CommandSender commandSender, int page, int limit, boolean exact) {
-        List<String> result = new ArrayList<>();
+    public static List<Component> performLookup(String command, Statement statement, Location l, CommandSender commandSender, int page, int limit, boolean exact) {
+        List<Component> result = new ArrayList<>();
 
         try {
             if (l == null) {
@@ -83,17 +90,21 @@ public class ChestTransactionLookup {
                 int resultAmount = results.getInt("amount");
                 int resultRolledBack = results.getInt("rolled_back");
                 byte[] resultMetadata = results.getBytes("metadata");
-                String tooltip = Util.getEnchantments(resultMetadata, resultType, resultAmount);
+                Component tooltip = Util.getNmsToolTip(resultMetadata, resultType, resultAmount);
 
                 if (ConfigHandler.playerIdCacheReversed.get(resultUserId) == null) {
                     UserStatement.loadName(statement.getConnection(), resultUserId);
                 }
 
                 String resultUser = ConfigHandler.playerIdCacheReversed.get(resultUserId);
-                String timeAgo = Util.getTimeSince(resultTime, time, true);
+                Component timeAgo = Util.getTimeSinceComponent(resultTime, time, true);
 
                 if (!found) {
-                    result.add(new StringBuilder(Color.WHITE + "----- " + Color.DARK_AQUA + Phrase.build(Phrase.CONTAINER_HEADER) + Color.WHITE + " ----- " + Util.getCoordinates(command, worldId, x, y, z, false, false)).toString());
+                    result.add(Chat.deserializeString(Color.WHITE + "----- "+ Color.DARK_AQUA)
+                            .append(Phrase.buildComponent(Phrase.CONTAINER_HEADER))
+                            .append( Chat.deserializeString(Color.WHITE + " ----- ") )
+                            .append(Util.getCoordinatesComponent(command, worldId, x, y, z, false, false)));
+                   // result.add(new StringBuilder(Color.WHITE + "----- " + Color.DARK_AQUA + Phrase.build(Phrase.CONTAINER_HEADER) + Color.WHITE + " ----- " + Util.getCoordinates(command, worldId, x, y, z, false, false)).toString());
                 }
                 found = true;
 
@@ -108,34 +119,32 @@ public class ChestTransactionLookup {
                 if (resultMaterial == null) {
                     resultMaterial = Material.AIR;
                 }
-                String target = resultMaterial.name().toLowerCase(Locale.ROOT);
-                target = Util.nameFilter(target, resultData);
-                if (target.length() > 0) {
-                    target = "minecraft:" + target.toLowerCase(Locale.ROOT) + "";
-                }
+                String target = resultMaterial.translationKey();
 
-                // Hide "minecraft:" for now.
-                if (target.startsWith("minecraft:")) {
-                    target = target.split(":")[1];
-                }
+                Component itemComponent = Util.createTooltipComponent(Chat.deserializeString(Color.DARK_AQUA + rbFormat).append(Component.translatable(target))
+                        ,tooltip).append(Component.text().color(NamedTextColor.WHITE));
 
-                result.add(new StringBuilder(timeAgo + " " + tag + " " + Phrase.build(Phrase.LOOKUP_CONTAINER, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, "x" + resultAmount, Util.createTooltip(Color.DARK_AQUA + rbFormat + target, tooltip) + Color.WHITE, selector)).toString());
+                result.add(Component.empty()
+                        .append(timeAgo)
+                        .append(Chat.deserializeString(" " + tag + " "))
+                        .append(Phrase.buildComponent(Phrase.LOOKUP_CONTAINER,Chat.deserializeString(Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat),Chat.deserializeString("x" + resultAmount),itemComponent,Chat.deserializeString(selector))));
+                //result.add(new StringBuilder(timeAgo + " " + tag + " " + Phrase.build(Phrase.LOOKUP_CONTAINER, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, "x" + resultAmount, Util.createTooltip(Color.DARK_AQUA + rbFormat + target, tooltip) + Color.WHITE, selector)).toString());
                 PluginChannelListener.getInstance().sendData(commandSender, resultTime, Phrase.LOOKUP_CONTAINER, selector, resultUser, target, resultAmount, x, y, z, worldId, rbFormat, true, tag.contains("+"));
             }
             results.close();
 
             if (found) {
                 if (count > limit) {
-                    result.add(Color.WHITE + "-----");
-                    result.add(Util.getPageNavigation(command, page, totalPages));
+                    result.add(Chat.deserializeString(Color.WHITE + "-----"));
+                    result.add(Util.getPageNavigationComponent(command, page, totalPages));
                 }
             }
             else {
                 if (rowMax > count && count > 0) {
-                    result.add(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND));
+                    result.add(Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND)));
                 }
                 else {
-                    result.add(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.SECOND));
+                    result.add(Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.SECOND)));
                 }
             }
 

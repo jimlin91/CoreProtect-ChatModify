@@ -2,6 +2,8 @@ package net.coreprotect.utility;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -19,6 +21,15 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import com.google.common.collect.Iterables;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.minecraft.network.chat.IChatBaseComponent;
+import net.minecraft.world.entity.player.EntityHuman;
+import net.minecraft.world.item.TooltipFlag;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -134,6 +145,26 @@ public class Util extends Queue {
         return message.append(Chat.COMPONENT_TAG_CLOSE).toString();
     }
 
+    // Component modify start
+    public static Component getCoordinatesComponent(String command, int worldId, int x, int y, int z, boolean displayWorld, boolean italic) {
+        Component result = Component.empty();
+
+        StringBuilder worldDisplay = new StringBuilder();
+        if (displayWorld) {
+            worldDisplay.append("/").append(Util.getWorldName(worldId));
+        }
+
+
+        String commandContent = "/" + command + " teleport wid:" + worldId + " " + (x + 0.50) + " " + y + " " + (z + 0.50);
+        result = result.append(Chat.deserializeString(Color.GREY + (italic ? Color.ITALIC : "") + "(x" + x + "/y" + y + "/z" + z + worldDisplay + ")")
+                .clickEvent(ClickEvent.runCommand(commandContent))
+                .hoverEvent(Chat.deserializeString(commandContent).color(NamedTextColor.WHITE)));
+
+
+        return result;
+    }
+    // Component modify end
+
     public static String getPageNavigation(String command, int page, int totalPages) {
         StringBuilder message = new StringBuilder();
 
@@ -230,6 +261,110 @@ public class Util extends Queue {
         return message.append(Color.WHITE + backArrow + Color.DARK_AQUA + Phrase.build(Phrase.LOOKUP_PAGE, Color.WHITE + page + "/" + totalPages) + nextArrow + pagination).toString();
     }
 
+    public static Component getPageNavigationComponent(String command, int page, int totalPages) {
+        Component output = Component.empty();
+
+        // back arrow
+        Component backArrow = Component.empty();
+        if (page > 1) {
+            backArrow = Chat.deserializeString("◀ ")
+                    .clickEvent(ClickEvent.runCommand("/" + command + " l " + (page - 1)));
+        }
+
+        // next arrow
+        Component nextArrow = Component.text(" ");
+        if (page < totalPages) {
+            nextArrow = Chat.deserializeString(" ▶ ")
+                    .clickEvent(ClickEvent.runCommand("/" + command + " l " + (page + 1)));
+        }
+
+        Component pagination = Component.empty();
+        if (totalPages > 1) {
+            pagination = pagination.append(Chat.deserializeString(Color.GREY + "("));
+            if (page > 3) {
+                pagination = pagination.append(Chat.deserializeString(Color.WHITE+"1 ")
+                        .clickEvent(ClickEvent.runCommand("/" + command + " l " + 1)));
+                if (page > 4 && totalPages > 7) {
+                    pagination = pagination.append(Chat.deserializeString(Color.GREY + "... "));
+                }
+                else {
+                    pagination = pagination.append(Chat.deserializeString(Color.GREY + "| "));
+                }
+            }
+
+            int displayStart = Math.max((page - 2), 1);
+            int displayEnd = Math.min((page + 2), totalPages);
+            if (page > 999 || (page > 101 && totalPages > 99999)) { // limit to max 5 page numbers
+                displayStart = (displayStart + 1) < displayEnd ? (displayStart + 1) : displayStart;
+                displayEnd = (displayEnd - 1) > displayStart ? (displayEnd - 1) : displayEnd;
+                if (displayStart > (totalPages - 3)) {
+                    displayStart = Math.max((totalPages - 3), 1);
+                }
+            }
+            else { // display at least 7 page numbers
+                if (displayStart > (totalPages - 5)) {
+                    displayStart = Math.max((totalPages - 5), 1);
+                }
+                if (displayEnd < 6) {
+                    displayEnd = Math.min(6, totalPages);
+                }
+            }
+
+            if (page > 99999) { // limit to max 3 page numbers
+                displayStart = (displayStart + 1) < displayEnd ? (displayStart + 1) : displayStart;
+                displayEnd = (displayEnd - 1) >= displayStart ? (displayEnd - 1) : displayEnd;
+                if (page == (totalPages - 1)) {
+                    displayEnd = totalPages - 1;
+                }
+                if (displayStart < displayEnd) {
+                    displayStart = displayEnd;
+                }
+            }
+
+            if (page > 3 && displayStart == 1) {
+                displayStart = 2;
+            }
+
+            for (int displayPage = displayStart; displayPage <= displayEnd; displayPage++) {
+                if (page != displayPage) {
+                    pagination = pagination.append(Chat.deserializeString(Color.WHITE + displayPage + (displayPage < totalPages ? " " : ""))
+                            .clickEvent(ClickEvent.runCommand("/" + command + " l " + displayPage)));
+                }
+                else {
+                    pagination = pagination.append(Chat.deserializeString(Color.WHITE + Color.UNDERLINE + displayPage + Color.RESET + (displayPage < totalPages ? " " : "")));
+                }
+                if (displayPage < displayEnd) {
+                    pagination = pagination.append(Chat.deserializeString(Color.GREY + "| "));
+                }
+            }
+
+            if (displayEnd < totalPages) {
+                if (displayEnd < (totalPages - 1)) {
+                    pagination = pagination.append(Chat.deserializeString(Color.GREY + "... "));
+                }
+                else {
+                    pagination = pagination.append(Chat.deserializeString(Color.GREY + "| "));
+                }
+                if (page != totalPages) {
+                    pagination = pagination.append(Chat.deserializeString(Color.WHITE+totalPages)
+                            .clickEvent(ClickEvent.runCommand("/" + command + " l " + totalPages)));
+                }
+                else {
+                    pagination = pagination.append(Chat.deserializeString(Color.WHITE + Color.UNDERLINE + totalPages));
+                }
+            }
+
+            pagination = pagination.append(Chat.deserializeString(Color.GREY + ")"));
+        }
+
+        return output
+                .append(backArrow.color(NamedTextColor.WHITE))
+                .append(Component.text("",NamedTextColor.DARK_AQUA))
+                .append(Phrase.buildComponent(Phrase.LOOKUP_PAGE,Chat.deserializeString(Color.WHITE + page + "/" + totalPages)))
+                .append(nextArrow)
+                .append(pagination);
+    }
+
     public static String getTimeSince(long resultTime, long currentTime, boolean component) {
         StringBuilder message = new StringBuilder();
         double timeSince = currentTime - (resultTime + 0.00);
@@ -267,6 +402,44 @@ public class Util extends Queue {
         return message.toString();
     }
 
+    public static Component getTimeSinceComponent(long resultTime, long currentTime, boolean component) {
+        StringBuilder message = new StringBuilder();
+        double timeSince = currentTime - (resultTime + 0.00);
+        if (timeSince < 0.00) {
+            timeSince = 0.00;
+        }
+
+        // minutes
+        timeSince = timeSince / 60;
+        if (timeSince < 60.0) {
+            message.append(Phrase.build(Phrase.LOOKUP_TIME, new DecimalFormat("0.00").format(timeSince) + "/m"));
+        }
+
+        // hours
+        if (message.length() == 0) {
+            timeSince = timeSince / 60;
+            if (timeSince < 24.0) {
+                message.append(Phrase.build(Phrase.LOOKUP_TIME, new DecimalFormat("0.00").format(timeSince) + "/h"));
+            }
+        }
+
+        // days
+        if (message.length() == 0) {
+            timeSince = timeSince / 24;
+            message.append(Phrase.build(Phrase.LOOKUP_TIME, new DecimalFormat("0.00").format(timeSince) + "/d"));
+        }
+
+        if (component) {
+            Date logDate = new Date(resultTime * 1000L);
+            String formattedTimestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(logDate);
+
+            return Chat.deserializeString(Color.GREY + message.toString())
+                    .hoverEvent(HoverEvent.showText(Chat.deserializeString(Color.GREY + formattedTimestamp)));
+        }
+
+        return Chat.deserializeString(message.toString());
+    }
+
     public static String getEnchantments(byte[] metadata, int type, int amount) {
         if (metadata == null) {
             return "";
@@ -296,6 +469,48 @@ public class Util extends Queue {
         return message.toString();
     }
 
+    public static Component getNmsToolTip(byte[] metadata, int type, int amount) {
+        Component result = Component.empty();
+
+        Player player = Iterables.getFirst(Bukkit.getOnlinePlayers(),null);
+        ItemStack item = new ItemStack(Util.getType(type), amount);
+        item = (ItemStack) Rollback.populateItemStack(item, metadata)[2];
+
+        String craftPacket = CoreProtect.getInstance().getCraftBukkitPacket();
+        try {
+            Class<?> craftItemClass = Class.forName(craftPacket+".inventory.CraftItemStack");
+            Method asNmsMethod = craftItemClass.getMethod("asNMSCopy",ItemStack.class);
+
+            net.minecraft.world.item.ItemStack nmsItem = (net.minecraft.world.item.ItemStack) asNmsMethod.invoke(null,item);
+
+            Class<?> craftHumanClass = Class.forName(craftPacket+".entity.CraftPlayer");
+            Method handleMethod = craftHumanClass.getMethod("getHandle");
+            EntityHuman entityHuman = (EntityHuman) handleMethod.invoke(craftHumanClass.cast(player));
+
+            List<IChatBaseComponent> baseComponents =  nmsItem.a(entityHuman, TooltipFlag.a.b);
+
+            boolean first = true;
+            for(IChatBaseComponent component:baseComponents){
+                if(!first){
+                    result = result.append(Component.newline());
+                }
+                else {
+                    first = false;
+                }
+
+                Component line = GsonComponentSerializer.gson().deserialize(IChatBaseComponent.ChatSerializer.a(component));
+                result = result.append(line);
+            }
+
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+
+        return result;
+    }
+
+
+
     public static String createTooltip(String phrase, String tooltip) {
         if (tooltip.isEmpty()) {
             return phrase;
@@ -310,6 +525,10 @@ public class Util extends Queue {
         message.append(phrase);
 
         return message.append(Chat.COMPONENT_TAG_CLOSE).toString();
+    }
+
+    public static Component createTooltipComponent(Component phrase, Component tooltip) {
+        return phrase.hoverEvent(HoverEvent.showText(tooltip));
     }
 
     public static String hoverCommandFilter(String string) {

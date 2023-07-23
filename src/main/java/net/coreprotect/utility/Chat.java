@@ -2,6 +2,8 @@ package net.coreprotect.utility;
 
 import java.util.logging.Level;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Server;
@@ -24,6 +26,10 @@ public final class Chat {
 
     public static void sendComponent(CommandSender sender, String string, String bypass) {
         SpigotAdapter.ADAPTER.sendComponent(sender, string, bypass);
+    }
+
+    public static Component deserializeString(String content){
+        return LegacyComponentSerializer.legacySection().deserialize(content);
     }
 
     public static void sendComponent(CommandSender sender, String string) {

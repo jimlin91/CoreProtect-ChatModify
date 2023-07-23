@@ -5,6 +5,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 import net.coreprotect.utility.Color;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public class Selector {
 
@@ -44,6 +49,21 @@ public class Selector {
 
         return output;
     }
+
+    // Component modify start
+    protected static Component processComponentSelection(Component output, String param, TextColor color) {
+        return   output.replaceText(TextReplacementConfig.builder().match("\\{([^{}|]+\\|)+[^{}]+}").replacement((component)->{
+            String result = LegacyComponentSerializer.legacySection().serialize(component.asComponent());
+            result = result.substring(1,result.length()-1);
+
+            int selector = Integer.parseInt(param.substring(1, 2)) - 1;
+            result = result.split("\\|")[selector];
+
+            return LegacyComponentSerializer.legacySection().deserialize(result).append(Component.text().color(color));
+        }).build());
+
+    }
+    // Component modify end
 
     private static int substring(String string, String search, int index) {
         int result = string.indexOf("|");

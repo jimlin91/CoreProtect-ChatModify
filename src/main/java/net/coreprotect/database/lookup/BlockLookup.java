@@ -4,6 +4,13 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Locale;
 
+import net.coreprotect.utility.Chat;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TranslatableComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.BlockState;
 import org.bukkit.command.CommandSender;
@@ -18,12 +25,15 @@ import net.coreprotect.utility.Util;
 
 public class BlockLookup {
 
-    public static String performLookup(String command, Statement statement, BlockState block, CommandSender commandSender, int offset, int page, int limit) {
+    public static Component performLookup(String command, Statement statement, BlockState block, CommandSender commandSender, int offset, int page, int limit) {
         String resultText = "";
+
+        //Replace to component
+        Component resultComponent = Component.empty();
 
         try {
             if (block == null) {
-                return resultText;
+                return resultComponent;
             }
 
             if (command == null) {
@@ -68,13 +78,11 @@ public class BlockLookup {
             query = "SELECT time,user,action,type,data,rolled_back FROM " + ConfigHandler.prefix + "block " + Util.getWidIndex("block") + "WHERE wid = '" + worldId + "' AND x = '" + x + "' AND z = '" + z + "' AND y = '" + y + "' AND action IN(0,1) AND time >= '" + checkTime + "' ORDER BY rowid DESC LIMIT " + page_start + ", " + limit + "";
             results = statement.executeQuery(query);
 
-            StringBuilder resultTextBuilder = new StringBuilder();
 
             while (results.next()) {
                 int resultUserId = results.getInt("user");
                 int resultAction = results.getInt("action");
                 int resultType = results.getInt("type");
-                int resultData = results.getInt("data");
                 long resultTime = results.getLong("time");
                 int resultRolledBack = results.getInt("rolled_back");
 
@@ -83,10 +91,14 @@ public class BlockLookup {
                 }
 
                 String resultUser = ConfigHandler.playerIdCacheReversed.get(resultUserId);
-                String timeAgo = Util.getTimeSince(resultTime, time, true);
+                Component timeAgo = Util.getTimeSinceComponent(resultTime, time, true);
 
                 if (!found) {
-                    resultTextBuilder = new StringBuilder(Color.WHITE + "----- " + Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "----- " + Util.getCoordinates(command, worldId, x, y, z, false, false) + "\n");
+
+                    resultComponent = Chat.deserializeString(Color.WHITE + "----- " + Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "----- ")
+                            .append(Util.getCoordinatesComponent(command, worldId, x, y, z, false, false))
+                            .append(Component.newline());
+
                 }
                 found = true;
 
@@ -111,48 +123,52 @@ public class BlockLookup {
 
                 String target;
                 if (resultAction == 3) {
-                    target = Util.getEntityType(resultType).name();
+                    target = Util.getEntityType(resultType).translationKey();
                 }
                 else {
                     Material resultMaterial = Util.getType(resultType);
                     if (resultMaterial == null) {
                         resultMaterial = Material.AIR;
                     }
-                    target = Util.nameFilter(resultMaterial.name().toLowerCase(Locale.ROOT), resultData);
-                    target = "minecraft:" + target.toLowerCase(Locale.ROOT);
-                }
-                if (target.length() > 0) {
-                    target = "" + target + "";
+                    target = resultMaterial.translationKey();
                 }
 
-                // Hide "minecraft:" for now.
-                if (target.startsWith("minecraft:")) {
-                    target = target.split(":")[1];
-                }
 
-                resultTextBuilder.append(timeAgo + " " + tag + " ").append(Phrase.build(phrase, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, Color.DARK_AQUA + rbFormat + target + Color.WHITE, selector)).append("\n");
+                resultComponent = resultComponent
+                        .append(timeAgo)
+                        .append(Chat.deserializeString(" " + tag + " ")) ;
+
+                resultComponent = resultComponent.append(Phrase.buildComponent(phrase,
+                        Chat.deserializeString(Color.DARK_AQUA + rbFormat + resultUser ),
+                        Chat.deserializeString(Color.WHITE + rbFormat)
+                        .append(Component.translatable(target)
+                                .color(NamedTextColor.DARK_AQUA)
+                                .decoration(TextDecoration.ITALIC,false)),
+                        Chat.deserializeString(selector))).append(Component.newline());
                 PluginChannelListener.getInstance().sendData(commandSender, resultTime, phrase, selector, resultUser, target, -1, x, y, z, worldId, rbFormat, false, tag.contains("+"));
             }
 
-            resultText = resultTextBuilder.toString();
             results.close();
 
             if (found) {
                 if (count > limit) {
-                    String pageInfo = Color.WHITE + "-----\n";
-                    pageInfo = pageInfo + Util.getPageNavigation(command, page, totalPages) + "\n";
-                    resultText = resultText + pageInfo;
+                    resultComponent = resultComponent.append(Chat.deserializeString(Color.WHITE + "-----"))
+                            .append(Component.newline())
+                            .append(Util.getPageNavigationComponent(command, page, totalPages))
+                            .append(Component.newline());
                 }
             }
             else {
                 if (rowMax > count && count > 0) {
-                    resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND);
+                    resultComponent = Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND));
                 }
                 else {
                     // resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Color.WHITE + "No block data found at " + Color.ITALIC + "x" + x + "/y" + y + "/z" + z + ".";
-                    resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.FIRST);
+                    resultComponent = Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.FIRST));
                     if (!blockName.equals("air") && !blockName.equals("cave_air")) {
-                        resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA, Color.ITALIC + block.getType().name().toLowerCase(Locale.ROOT)) + "\n";
+                        resultComponent = Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- ")
+                                .append(Phrase.buildComponent(Phrase.NO_DATA, Component.translatable( block.getType().translationKey(), TextColor.color(255,140,140)).decoration(TextDecoration.ITALIC,true)))
+                                .append(Component.newline());
                     }
                 }
             }
@@ -164,7 +180,7 @@ public class BlockLookup {
         catch (Exception e) {
             e.printStackTrace();
         }
-        return resultText;
+        return resultComponent;
     }
 
 }

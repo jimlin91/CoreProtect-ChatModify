@@ -4,6 +4,9 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Locale;
 
+import net.coreprotect.utility.Chat;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
@@ -18,12 +21,12 @@ import net.coreprotect.utility.Util;
 
 public class InteractionLookup {
 
-    public static String performLookup(String command, Statement statement, Block block, CommandSender commandSender, int offset, int page, int limit) {
-        String result = "";
+    public static Component performLookup(String command, Statement statement, Block block, CommandSender commandSender, int offset, int page, int limit) {
+        Component resultComponent = Component.empty();
 
         try {
             if (block == null) {
-                return result;
+                return resultComponent;
             }
 
             if (command == null) {
@@ -67,7 +70,7 @@ public class InteractionLookup {
             query = "SELECT time,user,action,type,data,rolled_back FROM " + ConfigHandler.prefix + "block " + Util.getWidIndex("block") + "WHERE wid = '" + worldId + "' AND x = '" + x + "' AND z = '" + z + "' AND y = '" + y + "' AND action='2' AND time >= '" + checkTime + "' ORDER BY rowid DESC LIMIT " + pageStart + ", " + limit + "";
             results = statement.executeQuery(query);
 
-            StringBuilder resultBuilder = new StringBuilder();
+
             while (results.next()) {
                 int resultUserId = results.getInt("user");
                 int resultAction = results.getInt("action");
@@ -81,10 +84,13 @@ public class InteractionLookup {
                 }
 
                 String resultUser = ConfigHandler.playerIdCacheReversed.get(resultUserId);
-                String timeAgo = Util.getTimeSince(resultTime, time, true);
+                Component timeAgo = Util.getTimeSinceComponent(resultTime, time, true);
 
                 if (!found) {
-                    resultBuilder = new StringBuilder(Color.WHITE + "----- " + Color.DARK_AQUA + Phrase.build(Phrase.INTERACTIONS_HEADER) + Color.WHITE + " ----- " + Util.getCoordinates(command, worldId, x, y, z, false, false) + "\n");
+                    resultComponent = resultComponent
+                            .append(Chat.deserializeString(Color.WHITE + "----- " + Color.DARK_AQUA + Phrase.build(Phrase.INTERACTIONS_HEADER) + Color.WHITE + " ----- "))
+                            .append(Util.getCoordinatesComponent(command, worldId, x, y, z, false, false))
+                            .append(Component.newline());
                 }
                 found = true;
 
@@ -97,36 +103,37 @@ public class InteractionLookup {
                 if (resultMaterial == null) {
                     resultMaterial = Material.AIR;
                 }
-                String target = resultMaterial.name().toLowerCase(Locale.ROOT);
-                target = Util.nameFilter(target, resultData);
-                if (target.length() > 0) {
-                    target = "minecraft:" + target.toLowerCase(Locale.ROOT) + "";
-                }
+                String target = resultMaterial.translationKey();
 
-                // Hide "minecraft:" for now.
-                if (target.startsWith("minecraft:")) {
-                    target = target.split(":")[1];
-                }
+                resultComponent = resultComponent
+                        .append(timeAgo)
+                        .append(Chat.deserializeString(" " + Color.WHITE + "- "))
+                        .append(Phrase.buildComponent(Phrase.LOOKUP_INTERACTION
+                                ,Chat.deserializeString(Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat)
+                                ,Chat.deserializeString(Color.DARK_AQUA + rbFormat ).append(Component.translatable(target).append(Chat.deserializeString(Color.WHITE)))
+                                ,Chat.deserializeString(Selector.FIRST)))
+                        .append(Component.newline());
 
-                resultBuilder.append(timeAgo + " " + Color.WHITE + "- ").append(Phrase.build(Phrase.LOOKUP_INTERACTION, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, Color.DARK_AQUA + rbFormat + target + Color.WHITE, Selector.FIRST)).append("\n");
+                //resultBuilder.append(timeAgo + " " + Color.WHITE + "- ").append(Phrase.build(Phrase.LOOKUP_INTERACTION, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, Color.DARK_AQUA + rbFormat + target + Color.WHITE, Selector.FIRST)).append("\n");
                 PluginChannelListener.getInstance().sendData(commandSender, resultTime, Phrase.LOOKUP_INTERACTION, Selector.FIRST, resultUser, target, -1, x, y, z, worldId, rbFormat, false, false);
             }
-            result = resultBuilder.toString();
+            //result = resultBuilder.toString();
             results.close();
 
             if (found) {
                 if (count > limit) {
-                    String pageInfo = Color.WHITE + "-----\n";
-                    pageInfo = pageInfo + Util.getPageNavigation(command, page, totalPages) + "\n";
-                    result = result + pageInfo;
+                    resultComponent = resultComponent.append(Chat.deserializeString(Color.WHITE + "-----"))
+                            .append(Component.newline())
+                            .append(Util.getPageNavigationComponent(command, page, totalPages))
+                            .append(Component.newline());
                 }
             }
             else {
                 if (rowMax > count && count > 0) {
-                    result = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND);
+                    resultComponent = Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_RESULTS_PAGE, Selector.SECOND));
                 }
                 else {
-                    result = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.THIRD);
+                    resultComponent = Chat.deserializeString(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.THIRD));
                 }
             }
 
@@ -138,7 +145,7 @@ public class InteractionLookup {
             e.printStackTrace();
         }
 
-        return result;
+        return resultComponent;
     }
 
 }
